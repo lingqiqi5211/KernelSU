@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,19 +26,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,7 +49,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -65,6 +65,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -178,6 +179,7 @@ fun ModuleScreen(navigator: DestinationsNavigator) {
                     )
                 }
             }
+
             else -> {
                 ModuleList(
                     navigator,
@@ -205,7 +207,7 @@ fun ModuleScreen(navigator: DestinationsNavigator) {
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModuleList(
     navigator: DestinationsNavigator,
@@ -398,44 +400,52 @@ private fun ModuleList(
                             }
                         }
 
-                        ModuleItem(navigator, module, isChecked, updatedModule.first, onUninstall = {
-                            scope.launch { onModuleUninstall(module) }
-                        }, onCheckChanged = {
-                            scope.launch {
-                                val success = loadingDialog.withLoading {
-                                    withContext(Dispatchers.IO) {
-                                        toggleModule(module.id, !isChecked)
+                        ModuleItem(
+                            navigator,
+                            module,
+                            isChecked,
+                            updatedModule.first,
+                            onUninstall = {
+                                scope.launch { onModuleUninstall(module) }
+                            },
+                            onCheckChanged = {
+                                scope.launch {
+                                    val success = loadingDialog.withLoading {
+                                        withContext(Dispatchers.IO) {
+                                            toggleModule(module.id, !isChecked)
+                                        }
                                     }
-                                }
-                                if (success) {
-                                    isChecked = it
-                                    viewModel.fetchModuleList()
+                                    if (success) {
+                                        isChecked = it
+                                        viewModel.fetchModuleList()
 
-                                    val result = snackBarHost.showSnackbar(
-                                        message = rebootToApply,
-                                        actionLabel = reboot,
-                                        duration = SnackbarDuration.Long
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        reboot()
+                                        val result = snackBarHost.showSnackbar(
+                                            message = rebootToApply,
+                                            actionLabel = reboot,
+                                            duration = SnackbarDuration.Long
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            reboot()
+                                        }
+                                    } else {
+                                        val message = if (isChecked) failedDisable else failedEnable
+                                        snackBarHost.showSnackbar(message.format(module.name))
                                     }
-                                } else {
-                                    val message = if (isChecked) failedDisable else failedEnable
-                                    snackBarHost.showSnackbar(message.format(module.name))
                                 }
-                            }
-                        }, onUpdate = {
-                            scope.launch {
-                                onModuleUpdate(
-                                    module,
-                                    updatedModule.third,
-                                    updatedModule.first,
-                                    "${module.name}-${updatedModule.second}.zip"
-                                )
-                            }
-                        }, onClick = {
-                            onClickModule(it.id, it.name, it.hasWebUi)
-                        })
+                            },
+                            onUpdate = {
+                                scope.launch {
+                                    onModuleUpdate(
+                                        module,
+                                        updatedModule.third,
+                                        updatedModule.first,
+                                        "${module.name}-${updatedModule.second}.zip"
+                                    )
+                                }
+                            },
+                            onClick = {
+                                onClickModule(it.id, it.name, it.hasWebUi)
+                            })
 
                         // fix last item shadow incomplete in LazyColumn
                         Spacer(Modifier.height(1.dp))
@@ -571,18 +581,53 @@ private fun ModuleItem(
             HorizontalDivider(thickness = Dp.Hairline)
 
             Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(modifier = Modifier.weight(1f, true))
+                Spacer(modifier = Modifier.weight(1f))
+
+                if (module.hasActionScript) {
+                    FilledTonalButton(
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .defaultMinSize(52.dp, 32.dp),
+                        onClick = { navigator.navigate(ExecuteModuleActionScreenDestination(module.id)) },
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            fontFamily = MaterialTheme.typography.labelMedium.fontFamily,
+                            fontSize = MaterialTheme.typography.labelMedium.fontSize,
+                            text = stringResource(R.string.action),
+                        )
+                    }
+                }
+
+                if (module.hasWebUi) {
+                    FilledTonalButton(
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .defaultMinSize(52.dp, 32.dp),
+                        onClick = { onClick(module) },
+                        shape = RoundedCornerShape(20.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        interactionSource = interactionSource
+                    ) {
+                        Text(
+                            fontFamily = MaterialTheme.typography.labelMedium.fontFamily,
+                            fontSize = MaterialTheme.typography.labelMedium.fontSize,
+                            text = stringResource(R.string.open),
+                        )
+                    }
+                }
 
                 if (updateUrl.isNotEmpty()) {
                     Button(
                         modifier = Modifier
-                            .padding(0.dp)
+                            .padding(end = 4.dp)
                             .defaultMinSize(52.dp, 32.dp),
                         onClick = { onUpdate(module) },
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(20.dp),
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         Text(
@@ -596,52 +641,14 @@ private fun ModuleItem(
                 TextButton(
                     enabled = !module.remove,
                     onClick = { onUninstall(module) },
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
                         fontFamily = MaterialTheme.typography.labelMedium.fontFamily,
                         fontSize = MaterialTheme.typography.labelMedium.fontSize,
-                        text = stringResource(R.string.uninstall),
+                        text = stringResource(R.string.uninstall)
                     )
-                }
-
-                if (module.hasWebUi) {
-                    TextButton(
-                        onClick = { onClick(module) },
-                        interactionSource = interactionSource
-                    ) {
-                        Text(
-                            fontFamily = MaterialTheme.typography.labelMedium.fontFamily,
-                            fontSize = MaterialTheme.typography.labelMedium.fontSize,
-                            text = stringResource(R.string.open),
-                        )
-                    }
-                }
-
-                if (module.hasActionScript) {
-                    Button(
-                        onClick = { navigator.navigate(ExecuteModuleActionScreenDestination(module.id)) },
-                        modifier = Modifier
-                            .padding(0.dp)
-                            .defaultMinSize(52.dp, 32.dp),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Icon(
-                            modifier = Modifier
-                                .padding(6.dp)
-                                .size(20.dp),
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = null
-                        )
-                        Text(
-                            modifier = Modifier.padding(end = 6.dp),
-                            text = stringResource(R.string.action),
-                            maxLines = 1,
-                            fontFamily = MaterialTheme.typography.labelMedium.fontFamily,
-                            fontSize = MaterialTheme.typography.labelMedium.fontSize,
-                            softWrap = false
-                        )
-                    }
                 }
             }
         }

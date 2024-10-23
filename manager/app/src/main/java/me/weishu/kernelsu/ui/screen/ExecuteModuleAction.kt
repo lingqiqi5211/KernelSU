@@ -53,6 +53,7 @@ fun ExecuteModuleActionScreen(navigator: DestinationsNavigator, moduleId: String
     val snackBarHost = LocalSnackbarHost.current
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    var actionResult: Boolean
 
     LaunchedEffect(Unit) {
         if (text.isNotEmpty()) {
@@ -64,8 +65,11 @@ fun ExecuteModuleActionScreen(navigator: DestinationsNavigator, moduleId: String
                 logContent.append(it).append("\n")
             }, onStderr = {
                 logContent.append(it).append("\n")
-            })
+            }).let {
+                actionResult = it
+            }
         }
+        if (actionResult) navigator.popBackStack()
     }
 
     Scaffold(
